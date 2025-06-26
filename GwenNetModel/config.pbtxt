@@ -1,0 +1,49 @@
+name: "GwenNetModel"
+platform: "pytorch_libtorch"
+max_batch_size: 1
+
+input [
+    {
+        name: "input_0"
+        data_type: TYPE_FP32
+        dims: [21, 14, 4]
+    }
+]
+
+output[ 
+    {
+        name: "output_0"
+        data_type: TYPE_FP32
+        dims: [20000]
+    },
+    {
+        name: "output_1"
+        data_type: TYPE_FP32
+        dims: [1]
+    }
+]
+
+parameters [
+    {
+        key: "BINARY_INPUT_FORMAT"
+        value: { string_value: "true" }
+    },
+    {
+        key: "BINARY_OUTPUT_FORMAT"
+        value: { string_value: "true" }
+    },
+    {
+        key: "FORCE_HTTP_RESPONSE_HEADERS"
+        value: { string_value: "X-Request-ID" }
+    },
+    {
+        key: "TRITON_REQUEST_ID_LOG"
+        value: { string_value: "true" }
+    },
+    {
+        key: "TRITON_LATENCY_METRIC"
+        value: { string_value: "true" }
+    }
+]
+
+
