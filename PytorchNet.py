@@ -23,6 +23,35 @@ class ResBlock(nn.Module):
 		y = self.conv2_bn(y)
 		y = x + y
 		return self.conv2_act(y)
+	
+class GlobalFeatureExtractor(nn.Module):
+    def __init__(self, num_input_channels, num_features=128):
+        super().__init__()
+        # 使用通道注意力聚焦重要特征
+        self.channel_attention = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            nn.Conv2d(num_input_channels, num_input_channels // 16, 1),
+            nn.ReLU(),
+            nn.Conv2d(num_input_channels // 16, num_input_channels, 1),
+            nn.Sigmoid()
+        )
+        
+        # HP总和特征提取
+        self.hp_extractor = nn.Sequential(
+            nn.Conv2d(num_input_channels, 64, kernel_size=1),
+            nn.ReLU(),
+            nn.Flatten(),
+            nn.Linear(64 * 14 * 4, num_features)
+        )
+        
+    def forward(self, x):
+        # 通道注意力加权
+        channel_weights = self.channel_attention(x)
+        weighted_x = x * channel_weights
+        
+        # 提取全局HP特征
+        global_features = self.hp_extractor(weighted_x)
+        return global_features
 
 class Net(nn.Module):
 	#def __init__(self, in_features_num = 200, num_channels=256, num_res_blocks=7):
@@ -30,72 +59,135 @@ class Net(nn.Module):
 		# in_features_num represents feature descriptions of the board, which is 
 		super().__init__()
 		self.conv_block = nn.Conv2d(in_channels=in_features_num, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1)
-		self.conv_block_bn = nn.BatchNorm2d(256)
+		self.conv_block_bn = nn.BatchNorm2d(num_channels)
 		self.conv_block_act = nn.ReLU()
 
 		# resnet for features extraction
 		self.res_blocks = nn.ModuleList([ResBlock(num_filters=num_channels) for _ in range(num_res_blocks)])
 
-		# policy head
-		self.policy_conv = nn.Conv2d(in_channels=num_channels, out_channels=16, kernel_size=(1,1), stride=(1,1))
-		self.policy_bn = nn.BatchNorm2d(16)
-		self.policy_act = nn.ReLU()
-		totalMoveNb = 20000
-		#self.policy_fc = nn.Linear(16*8*8, totalMoveNb)
-		self.policy_fc = nn.Linear(16*14*4, totalMoveNb)
+		self.global_feature_extractor = GlobalFeatureExtractor(num_channels)
 
-		# value head
-		self.value_conv = nn.Conv2d(in_channels=num_channels, out_channels=512, kernel_size=(1,1), stride=(1,1))
-		self.value_bn = nn.BatchNorm2d(512)
-		self.value_act1 = nn.ReLU()
-		self.value_fc1 = nn.Linear(512*14*4, 2048)
-		self.value_act2 = nn.ReLU()
-		self.value_fc2 = nn.Linear(2048, 1024)
-		self.value_act3 = nn.ReLU()
-		self.value_fc3 = nn.Linear(1024, 512)
-		self.value_act4 = nn.ReLU()
-		self.value_fc4 = nn.Linear(512, 256)
-		self.value_act5 = nn.ReLU()
-		self.value_fc5 = nn.Linear(256, 128)
-		self.value_act6 = nn.ReLU()
-		self.value_fc6 = nn.Linear(128, 1)
+		self.cur_player_extractor = nn.Sequential(
+			nn.Linear(1, 16),
+			nn.ReLU(),
+			nn.Linear(16,32)
+		)
+
+		# policy head
+		self.policy_head = nn.Sequential(
+			nn.Conv2d(in_channels=num_channels, out_channels=21, kernel_size=(1,1)),
+			nn.BatchNorm2d(21),
+			nn.ReLU(),
+			nn.Flatten(),
+			nn.Linear(21*14*4, 20000),
+			nn.LogSoftmax(dim=1)
+		)
+
+		self.value_head_hp_feature = nn.Sequential(
+			nn.Conv2d(in_channels=num_channels, out_channels=256, kernel_size=(1,1)),
+			nn.BatchNorm2d(256),
+			nn.ReLU(),
+			nn.Flatten(),
+			nn.Linear(256*14*4, 256),
+			nn.ReLU(),
+			self.make_hpsum_fusion_block(256),
+			nn.Linear(256, 128),
+			nn.ReLU(),
+			nn.Linear(128, 1),
+			nn.Tanh()
+		)
+
+		self.value_head_curplayer_feature = nn.Sequential(
+			nn.Conv2d(in_channels=num_channels, out_channels=128, kernel_size=(1,1)),
+			nn.BatchNorm2d(128),
+			nn.ReLU(),
+			nn.AdaptiveAvgPool2d(1),
+			nn.Flatten(),
+			nn.Linear(128, 64),
+			nn.ReLU(),
+			self.make_curplayer_feature_fusion_block(64)
+		)
+
+		self.value_head_2 = nn.Sequential(
+			nn.Conv2d(in_channels=num_channels, out_channels=128, kernel_size=(1,1)),
+			nn.BatchNorm2d(128),
+			nn.ReLU(),
+			nn.AdaptiveAvgPool2d(1),
+			nn.Flatten(),
+			nn.Linear(128, 256),
+			nn.ReLU(),
+			nn.Linear(256, 1),
+			nn.Tanh()
+		)
+
+		self.value_head_3 = nn.Sequential(
+			nn.Conv2d(in_channels=num_channels, out_channels=21, kernel_size=(1,1)),
+			nn.BatchNorm2d(21),
+			nn.ReLU(),
+			nn.Flatten(),
+			nn.Linear(21*14*4, 256),
+			nn.ReLU(),
+			nn.Linear(256, 1),
+			nn.Tanh()
+		)
+
+	def make_curplayer_feature_fusion_block(self, input_size):
+		return nn.Sequential(
+			nn.Linear(input_size + 32, 128),
+			nn.ReLU(),
+			nn.Linear(128, 64),
+			nn.ReLU(),
+			nn.Linear(64, 1),
+			nn.Tanh()
+		)
+
+	def make_hpsum_fusion_block(self, input_size):
+		return nn.Sequential(
+			# 特征拼接层
+			nn.Linear(input_size + 128, input_size),  # 128是全局特征大小
+			nn.ReLU(),
+			# 特征交互层
+			nn.Linear(input_size, input_size),
+			nn.ReLU(),
+			# 归一化
+			nn.LayerNorm(input_size)
+		)
 
 	def forward(self, x):
+		curplayer = x[:, 17, 0, 0].unsqueeze(1)
+
 		x = self.conv_block(x)
 		x = self.conv_block_bn(x)
 		x = self.conv_block_act(x)
 		for layer in self.res_blocks:
 			x = layer(x)
 
+		global_features = self.global_feature_extractor(x)
+
+		curplayer_features = self.cur_player_extractor(curplayer)
+
+		curplayer_spatial_features = self.value_head_curplayer_feature[0:7](x)
+
+		fused_curplayer_features = torch.cat([curplayer_spatial_features, curplayer_features], dim=1)
+
+		curplayer_feature_value = self.value_head_curplayer_feature[7](fused_curplayer_features)
+
 		# policy head
-		policy = self.policy_conv(x)
-		policy = self.policy_bn(policy)
-		policy = self.policy_act(policy)
-		#policy = torch.reshape(policy, [-1, 16*18*8])
-		policy = torch.reshape(policy, [-1, 16*14*4])
-		#policy = torch.reshape(policy, [-1, 7168])
-		policy = self.policy_fc(policy)
-		policy = F.log_softmax(policy)
+		policy = self.policy_head(x)
+
 
 		# value head
-		value = self.value_conv(x)
-		value = self.value_bn(value)
-		value = self.value_act1(value)
-		value = torch.reshape(value, [-1, 512*14*4])
-		value = self.value_fc1(value)
-		value = self.value_act1(value)
-		value = self.value_fc2(value)
-		value = self.value_act2(value)
-		value = self.value_fc3(value)
-		value = self.value_act3(value)
-		value = self.value_fc4(value)
-		value = self.value_act4(value)
-		value = self.value_fc5(value)
-		value = self.value_act5(value)
-		value = self.value_fc6(value)
-		value = F.tanh(value)
+		'''
+		spatial_features = self.value_head[0:6](x)
+		fusion_features = torch.cat([spatial_features, global_features], dim=1)
+		fusion_features = self.value_head[6](fusion_features)
+		value = self.value_head[7:](fusion_features)
+		'''
 
-		return policy, value
+		#value = self.value_head_2(x)
+		#value = self.value_head_3(x)
+
+		return policy, curplayer_feature_value
 
 class PolicyValueNet:
 	def __init__(self, model_file = None, use_gpu = True, device = 'cuda'):

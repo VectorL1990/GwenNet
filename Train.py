@@ -160,8 +160,9 @@ class Trainer:
                         #print(f"now comes to step {j}")
                         stateCoding = np.frombuffer(stateCodingsFile.read(channelNb*height*width*4), dtype=np.int32)
                         stateCoding = stateCoding.reshape((21, 14, 4)).astype(np.float32)
-                        #if j == 16:
-                        #    print(stateCoding[17])
+                        stateCoding[19] = -stateCoding[19]
+                        if j == 30:
+                            print(stateCoding[18])
                         stepStates.append(stateCoding)
                     stepStates = list(stepStates)[:]
                     self.totalGameStatesBatch.extend(stepStates)
