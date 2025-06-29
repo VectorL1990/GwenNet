@@ -26,7 +26,7 @@ class ResBlock(nn.Module):
 
 class Net(nn.Module):
 	#def __init__(self, in_features_num = 200, num_channels=256, num_res_blocks=7):
-	def __init__(self, in_features_num = 21, num_channels=256, num_res_blocks=7):
+	def __init__(self, in_features_num = 19, num_channels=256, num_res_blocks=7):
 		# in_features_num represents feature descriptions of the board, which is 
 		super().__init__()
 		self.conv_block = nn.Conv2d(in_channels=in_features_num, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1)
@@ -44,31 +44,31 @@ class Net(nn.Module):
 
 		# policy head
 		self.policy_head = nn.Sequential(
-			nn.Conv2d(in_channels=num_channels, out_channels=21, kernel_size=(1,1)),
-			nn.BatchNorm2d(21),
+			nn.Conv2d(in_channels=num_channels, out_channels=19, kernel_size=(1,1)),
+			nn.BatchNorm2d(19),
 			nn.ReLU(),
 			nn.Flatten(),
-			nn.Linear(21*14*4, 20000),
+			nn.Linear(19*14*4, 20000),
 			nn.LogSoftmax(dim=1)
 		)
 
 		self.origin_value_head = nn.Sequential(
-			nn.Conv2d(in_channels=num_channels, out_channels=21, kernel_size=(1,1), stride=(1,1)),
-			nn.BatchNorm2d(21),
+			nn.Conv2d(in_channels=num_channels, out_channels=19, kernel_size=(1,1), stride=(1,1)),
+			nn.BatchNorm2d(19),
 			nn.ReLU(),
 			nn.Flatten(),
-			nn.Linear(21*14*4, 256),
+			nn.Linear(19*14*4, 256),
 			nn.ReLU(),
 			nn.Linear(256, 1),
 			nn.Tanh()
 		)
 
 		self.value_head_hpSumAndCurPlayer_spatial = nn.Sequential(
-			nn.Conv2d(in_channels=num_channels, out_channels=21, kernel_size=(1,1)),
-			nn.BatchNorm2d(21),
+			nn.Conv2d(in_channels=num_channels, out_channels=19, kernel_size=(1,1)),
+			nn.BatchNorm2d(19),
 			nn.ReLU(),
 			nn.Flatten(),
-			nn.Linear(21*14*4, 64),
+			nn.Linear(19*14*4, 64),
 			nn.ReLU(),
 			self.make_all_fusion_block()
 		)
@@ -79,7 +79,7 @@ class Net(nn.Module):
 			#nn.ReLU(),
 			nn.AdaptiveAvgPool2d(1),
 			nn.Flatten(),
-			nn.Linear(21, 64),
+			nn.Linear(19, 64),
 			nn.ReLU(),
 			self.make_global_fusion_block(64)
 		)
@@ -123,12 +123,8 @@ class Net(nn.Module):
 		)
 
 	def forward(self, x):
-		selected_channels = [20]
+		selected_channels = [18]
 		global_features_input = x[:, selected_channels, :, :]
-		curplayer = x[:, 17, 0, 0].unsqueeze(1)
-		sectionZeroHp = x[:, 18, 0, 0].unsqueeze(1)
-		sectionOneHp = x[:, 19, 0, 0].unsqueeze(1)
-		hpDiff = x[:, 20, 0, 0].unsqueeze(1)
 
 		x = self.conv_block(x)
 		x = self.conv_block_bn(x)
@@ -216,7 +212,7 @@ class PolicyValueNet:
 		return act_probs, value.detach().numpy()
 
 	def save_model(self, model_file):
-		example_input = torch.randn(1, 21, 14, 4).to(next(self.policy_value_net.parameters()).device)
+		example_input = torch.randn(1, 19, 14, 4).to(next(self.policy_value_net.parameters()).device)
 		self.policy_value_net.eval()
 		traced_model = torch.jit.trace(self.policy_value_net, example_input)
 		traced_model.save(model_file)
