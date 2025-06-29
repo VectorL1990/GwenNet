@@ -148,6 +148,8 @@ class Trainer:
                 height = struct.unpack('i', stateCodingsFile.read(4))[0]
                 width = struct.unpack('i', stateCodingsFile.read(4))[0]
                 stateGameNb = 0
+                zeroStart = 0
+                oneStart = 0
                 while stateCodingsFile.tell() < stateCodingFileSize:
                     stepNb_bytes = stateCodingsFile.read(4)
                     if not stepNb_bytes:  # 已到达文件末尾
@@ -160,12 +162,18 @@ class Trainer:
                         #print(f"now comes to step {j}")
                         stateCoding = np.frombuffer(stateCodingsFile.read(channelNb*height*width*4), dtype=np.int32)
                         stateCoding = stateCoding.reshape((21, 14, 4)).astype(np.float32)
-                        stateCoding[19] = -stateCoding[19]
-                        if j == 30:
-                            print(stateCoding[18])
+                        if j == 0:
+                            if stateCoding[17][0][0] == 1:
+                                zeroStart += 1
+                            elif stateCoding[17][0][0] == -1:
+                                oneStart += 1
+                        if stateCoding[17][0][0] == -1:
+                            stateCoding[20] = -stateCoding[20]
                         stepStates.append(stateCoding)
                     stepStates = list(stepStates)[:]
                     self.totalGameStatesBatch.extend(stepStates)
+                print(f"zero start: {zeroStart}")
+                print(f"one start: {oneStart}")
                 print(f"game nb is state: {stateGameNb}")
                 print(f"size of gameStatesBatch is: {len(self.totalGameStatesBatch)}")
 
@@ -197,6 +205,10 @@ class Trainer:
             winScoreFileSize = os.path.getsize("WinScores.bin")
             with open("WinScores.bin", 'rb') as winScoresFile:
                 winScoreGameNb = 0
+                testWinScoreNb = 0
+                zeroWin = 0
+                oneWin = 0
+                draw = 0
                 while winScoresFile.tell() < winScoreFileSize:
                     stepNb_bytes = winScoresFile.read(4)
                     if not stepNb_bytes:  # 已到达文件末尾
@@ -205,16 +217,24 @@ class Trainer:
                     stepNb = struct.unpack('i', stepNb_bytes)[0]
                     winScores = []
 
-                    print("sdfsdfsdfsdfsdfsdfsdf")
-                    tempPrintScores = []
+                    #print("sdfsdfsdfsdfsdfsdfsdf")
                     for j in range(stepNb):
                         winScore = struct.unpack('f', winScoresFile.read(4))[0]
                         winScores.append(winScore)
-                        tempPrintScores.append(winScore)
-                    print(tempPrintScores)
+                        if j == stepNb - 1:
+                            if self.totalGameStatesBatch[testWinScoreNb][20][0][0] > 0:
+                                zeroWin += 1
+                            elif self.totalGameStatesBatch[testWinScoreNb][20][0][0] < 0:
+                                oneWin += 1
+                            else:
+                                draw += 1
+                        testWinScoreNb += 1
 
                     winScores = list(winScores)[:]
                     self.totalGameWinScoresBatch.extend(winScores)
+                print(f"total zero win: {zeroWin}")
+                print(f"total one win: {oneWin}")
+                print(f"total draw: {draw}")
                 print(f"win score game nb is actionprobs: {winScoreGameNb}")
                 print(f"size of winScores is: {len(self.totalGameWinScoresBatch)}")
 
