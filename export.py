@@ -3,11 +3,11 @@ from PytorchNet import Net
 
 def export():
     #model = Net(in_features_num = 200)
-    model = Net(in_features_num = 19)
+    model = Net(in_features_num = 25)
     model.eval()
 
     #dummyInput = torch.randn(1, 200, 18, 8)
-    dummyInput = torch.randn(1, 19, 14, 4)
+    dummyInput = torch.randn(1, 25, 14, 4)
 
     tracedModel = torch.jit.trace(model, dummyInput)
     tracedModel.save("model.pt")

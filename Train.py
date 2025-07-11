@@ -141,6 +141,7 @@ class Trainer:
 
     def run(self):
         try:
+            startSectionList = []
             stateCodingFileSize = os.path.getsize("StateCoding.bin")
             with open("StateCoding.bin", 'rb') as stateCodingsFile:
                 #gameNb = struct.unpack('i', stateCodingsFile.read(4))[0]
@@ -161,13 +162,16 @@ class Trainer:
                     for j in range(stepNb):
                         #print(f"now comes to step {j}")
                         stateCoding = np.frombuffer(stateCodingsFile.read(channelNb*height*width*4), dtype=np.int32)
-                        stateCoding = stateCoding.reshape((19, 14, 4)).astype(np.float32)
-                        if j == 0:
-                            if stateCoding[17][0][0] == 1:
+                        stateCoding = stateCoding.reshape((25, 14, 4)).astype(np.float32)
+                        if j == 1:
+                            if stateCoding[23][0][0] == 1:
                                 zeroStart += 1
-                            elif stateCoding[17][0][0] == -1:
+                                startSectionList.append(1)
+                            elif stateCoding[23][0][0] == -1:
                                 oneStart += 1
-                        #if stateCoding[17][0][0] == -1:
+                                startSectionList.append(-1)
+
+                        #if stateCoding[19][0][0] == -1:
                         #    stateCoding[18] = -stateCoding[18]
                         stepStates.append(stateCoding)
                     stepStates = list(stepStates)[:]
@@ -202,6 +206,14 @@ class Trainer:
                     self.totalActionProbsBatch.extend(stepActionProbs)
                 print(f"game nb is actionprobs: {actionGameNb}")
 
+            testNb = 0
+            sectionZeroWinNb = 0
+            sectionOneWinNb = 0
+            zeroStartWin = 0
+            zeroStartLose = 0
+            oneStartWin = 0
+            oneStartLose = 0
+            drawNb = 0
             winScoreFileSize = os.path.getsize("WinScores.bin")
             with open("WinScores.bin", 'rb') as winScoresFile:
                 winScoreGameNb = 0
@@ -217,13 +229,40 @@ class Trainer:
                     #print("sdfsdfsdfsdfsdfsdfsdf")
                     for j in range(stepNb):
                         winScore = struct.unpack('f', winScoresFile.read(4))[0]
+                        if j == 1:
+                            if startSectionList[testNb] == 1:
+                                if winScore == 1:
+                                    sectionZeroWinNb += 1
+                                    zeroStartWin += 1
+                                elif winScore == -1:
+                                    sectionOneWinNb += 1
+                                    zeroStartLose += 1
+                                else:
+                                    drawNb += 1
+                            else:
+                                if winScore == 1:
+                                    sectionOneWinNb += 1
+                                    oneStartWin += 1
+                                elif winScore == -1:
+                                    sectionZeroWinNb += 1
+                                    oneStartLose += 1
+                                else:
+                                    drawNb += 1
                         winScores.append(winScore)
                         testWinScoreNb += 1
 
                     winScores = list(winScores)[:]
                     self.totalGameWinScoresBatch.extend(winScores)
+                    testNb += 1
                 print(f"win score game nb is actionprobs: {winScoreGameNb}")
                 print(f"size of winScores is: {len(self.totalGameWinScoresBatch)}")
+                print(f"0 win: {sectionZeroWinNb}")
+                print(f"1 win: {sectionOneWinNb}")
+                print(f"draw: {drawNb}")
+                print(f"0 start win {zeroStartWin}")
+                print(f"0 start lose {zeroStartWin}")
+                print(f"1 start win {oneStartWin}")
+                print(f"1 start lose {oneStartLose}")
 
             #states_array = np.array(self.totalGameStatesBatch)
             #probs_array = np.array(self.totalActionProbsBatch)

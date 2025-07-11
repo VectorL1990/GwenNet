@@ -6,7 +6,7 @@ input [
     {
         name: "input_0"
         data_type: TYPE_FP32
-        dims: [19, 14, 4]
+        dims: [25, 14, 4]
     }
 ]
 

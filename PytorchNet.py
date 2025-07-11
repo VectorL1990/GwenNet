@@ -4,9 +4,10 @@ import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
 from torch.cuda.amp import autocast
+import copy
 
 class ResBlock(nn.Module):
-	def __init__(self, num_filters=256):
+	def __init__(self, num_filters=512):
 		super().__init__()
 		self.conv1 = nn.Conv2d(in_channels=num_filters, out_channels=num_filters, kernel_size=(3,3), stride=(1,1), padding=1)
 		self.conv1_bn = nn.BatchNorm2d(num_filters, )
@@ -26,7 +27,7 @@ class ResBlock(nn.Module):
 
 class Net(nn.Module):
 	#def __init__(self, in_features_num = 200, num_channels=256, num_res_blocks=7):
-	def __init__(self, in_features_num = 19, num_channels=256, num_res_blocks=7):
+	def __init__(self, in_features_num = 25, num_channels=512, num_res_blocks=7):
 		# in_features_num represents feature descriptions of the board, which is 
 		super().__init__()
 		self.conv_block = nn.Conv2d(in_channels=in_features_num, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1)
@@ -36,52 +37,35 @@ class Net(nn.Module):
 		# resnet for features extraction
 		self.res_blocks = nn.ModuleList([ResBlock(num_filters=num_channels) for _ in range(num_res_blocks)])
 
-		self.global_feature_extractor = nn.Sequential(
-			nn.Linear(1, 16),
-			nn.ReLU(),
-			nn.Linear(16, 32)
-		)
-
 		# policy head
 		self.policy_head = nn.Sequential(
-			nn.Conv2d(in_channels=num_channels, out_channels=19, kernel_size=(1,1)),
-			nn.BatchNorm2d(19),
+			nn.Conv2d(in_channels=num_channels, out_channels=25, kernel_size=(1,1)),
+			nn.BatchNorm2d(25),
 			nn.ReLU(),
 			nn.Flatten(),
-			nn.Linear(19*14*4, 20000),
+			nn.Linear(25*14*4, 20000),
 			nn.LogSoftmax(dim=1)
 		)
 
 		self.origin_value_head = nn.Sequential(
-			nn.Conv2d(in_channels=num_channels, out_channels=19, kernel_size=(1,1), stride=(1,1)),
-			nn.BatchNorm2d(19),
+			nn.Conv2d(in_channels=num_channels, out_channels=25, kernel_size=(1,1), stride=(1,1)),
+			nn.BatchNorm2d(25),
 			nn.ReLU(),
 			nn.Flatten(),
-			nn.Linear(19*14*4, 256),
+			nn.Linear(25*14*4, 256),
 			nn.ReLU(),
 			nn.Linear(256, 1),
 			nn.Tanh()
 		)
 
 		self.value_head_hpSumAndCurPlayer_spatial = nn.Sequential(
-			nn.Conv2d(in_channels=num_channels, out_channels=19, kernel_size=(1,1)),
-			nn.BatchNorm2d(19),
+			nn.Conv2d(in_channels=num_channels, out_channels=25, kernel_size=(1,1)),
+			nn.BatchNorm2d(25),
 			nn.ReLU(),
 			nn.Flatten(),
-			nn.Linear(19*14*4, 64),
+			nn.Linear(25*14*4, 64),
 			nn.ReLU(),
 			self.make_all_fusion_block()
-		)
-
-		self.value_head_hpSumAndCurPlayer_global = nn.Sequential(
-			#nn.Conv2d(in_channels=num_channels, out_channels=128, kernel_size=(1,1)),
-			#nn.BatchNorm2d(128),
-			#nn.ReLU(),
-			nn.AdaptiveAvgPool2d(1),
-			nn.Flatten(),
-			nn.Linear(19, 64),
-			nn.ReLU(),
-			self.make_global_fusion_block(64)
 		)
 
 		self.attention_feature_extractor = nn.Sequential(
@@ -96,22 +80,30 @@ class Net(nn.Module):
 			nn.ReLU()
 		)
 
-	def make_curplayer_feature_fusion_block(self, input_size):
-		return nn.Sequential(
-			nn.Linear(input_size + 32, 128),
+		self.rts_head = nn.Sequential(
+			nn.Conv2d(in_channels=25, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1, bias=False),
+			nn.BatchNorm2d(num_channels),
 			nn.ReLU(),
-			nn.Linear(128, 64),
+			nn.Conv2d(in_channels=num_channels, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1, bias=False),
+			nn.BatchNorm2d(num_channels),
 			nn.ReLU(),
-			nn.Linear(64, 1),
+			nn.Conv2d(in_channels=num_channels, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1, bias=False),
+			nn.BatchNorm2d(num_channels),
+			nn.ReLU(),
+			nn.Conv2d(in_channels=num_channels, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1, bias=False),
+			nn.BatchNorm2d(num_channels),
+			nn.ReLU(),
+			nn.Flatten(),
+			nn.Linear(num_channels*14*4, 256),
+			nn.BatchNorm1d(256),
+			nn.ReLU(),
+			nn.Dropout(0.3),
+			nn.Linear(256, 128),
+			nn.BatchNorm1d(128),
+			nn.ReLU(),
+			nn.Dropout(0.3),
+			nn.Linear(128, 1),
 			nn.Tanh()
-		)
-
-	def make_global_fusion_block(self, input_size):
-		return nn.Sequential(
-			nn.Linear(input_size + 32 + 32 + 32 + 32, 128),  # 128是全局特征大小
-			nn.ReLU(),
-			nn.Linear(128, 64),
-			nn.ReLU()
 		)
 	
 	def make_all_fusion_block(self):
@@ -123,6 +115,9 @@ class Net(nn.Module):
 		)
 
 	def forward(self, x):
+		#test_head = self.rts_head(x)
+
+
 		selected_channels = [18]
 		global_features_input = x[:, selected_channels, :, :]
 
@@ -132,35 +127,27 @@ class Net(nn.Module):
 		for layer in self.res_blocks:
 			x = layer(x)
 
-		#curplayer_features = self.global_feature_extractor(curplayer)
-		#hpDiffFeatures = self.global_feature_extractor(hpDiff)
-		#sectionZeroFeatures = self.global_feature_extractor(sectionZeroHp)
-		#sectionOneFeatures = self.global_feature_extractor(sectionOneHp)
+		'''
 		attention_features = self.attention_feature_extractor(global_features_input)
 
 		spatial_features = self.value_head_hpSumAndCurPlayer_spatial[0:6](x)
-		#global_features = self.value_head_hpSumAndCurPlayer_global[0:4](x)
-		
-
-		#fused_features = torch.cat([global_features, curplayer_features], dim=1)
-		#fused_features = torch.cat([fused_features, hpDiffFeatures], dim=1)
-		#fused_features = torch.cat([fused_features, sectionZeroFeatures], dim=1)
-		#fused_features = torch.cat([fused_features, sectionOneFeatures], dim=1)
-
-		#global_feature_all = self.value_head_hpSumAndCurPlayer_global[4](fused_features)
 
 		all_features = torch.cat([spatial_features, attention_features], dim=1)
 
 		all_feature_value = self.value_head_hpSumAndCurPlayer_spatial[6](all_features)
+		'''
 
 		# policy head
 		policy = self.policy_head(x)
 
 
 		# value head
-		#origin_value = self.origin_value_head(x)
+		origin_value = self.origin_value_head(x)
+		
+		
 
-		return policy, all_feature_value
+		#return policy, all_feature_value
+		return policy, origin_value
 
 class PolicyValueNet:
 	def __init__(self, model_file = None, use_gpu = True, device = 'cuda'):
@@ -212,7 +199,7 @@ class PolicyValueNet:
 		return act_probs, value.detach().numpy()
 
 	def save_model(self, model_file):
-		example_input = torch.randn(1, 19, 14, 4).to(next(self.policy_value_net.parameters()).device)
+		example_input = torch.randn(1, 25, 14, 4).to(next(self.policy_value_net.parameters()).device)
 		self.policy_value_net.eval()
 		traced_model = torch.jit.trace(self.policy_value_net, example_input)
 		traced_model.save(model_file)
