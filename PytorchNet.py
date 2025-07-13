@@ -4,10 +4,9 @@ import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
 from torch.cuda.amp import autocast
-import copy
 
 class ResBlock(nn.Module):
-	def __init__(self, num_filters=512):
+	def __init__(self, num_filters=256):
 		super().__init__()
 		self.conv1 = nn.Conv2d(in_channels=num_filters, out_channels=num_filters, kernel_size=(3,3), stride=(1,1), padding=1)
 		self.conv1_bn = nn.BatchNorm2d(num_filters, )
@@ -27,7 +26,7 @@ class ResBlock(nn.Module):
 
 class Net(nn.Module):
 	#def __init__(self, in_features_num = 200, num_channels=256, num_res_blocks=7):
-	def __init__(self, in_features_num = 25, num_channels=512, num_res_blocks=7):
+	def __init__(self, in_features_num = 25, num_channels=256, num_res_blocks=7):
 		# in_features_num represents feature descriptions of the board, which is 
 		super().__init__()
 		self.conv_block = nn.Conv2d(in_channels=in_features_num, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1)
@@ -58,6 +57,56 @@ class Net(nn.Module):
 			nn.Tanh()
 		)
 
+		self.spatial_preprocess_block = nn.Sequential(
+			nn.Conv2d(in_channels=20, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1),
+			nn.BatchNorm2d(num_channels),
+			nn.ReLU()
+		)
+
+		self.spatial_onehot_block = nn.Sequential(
+			nn.Conv2d(in_channels=num_channels, out_channels=20, kernel_size=(1,1), stride=(1,1)),
+			nn.BatchNorm2d(20),
+			nn.ReLU(),
+			nn.Flatten(),
+			nn.Linear(20*14*4, 256),
+			nn.ReLU(),
+			nn.Linear(256, 1),
+			nn.Tanh()
+		)
+
+		self.spatial_not_onehot_preprocess_block = nn.Sequential(
+			nn.Conv2d(in_channels=4, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1),
+			nn.BatchNorm2d(num_channels),
+			nn.ReLU()
+		)
+
+		self.spatial_not_onehot_block = nn.Sequential(
+			nn.Conv2d(in_channels=num_channels, out_channels=4, kernel_size=(1,1), stride=(1,1)),
+			nn.BatchNorm2d(4),
+			nn.ReLU(),
+			nn.Flatten(),
+			nn.Linear(4*14*4, 64),
+			nn.ReLU(),
+			nn.Linear(64, 1),
+			nn.Tanh()
+		)
+
+		self.global_block = nn.Sequential(
+			nn.Conv2d(1, 64, kernel_size=1),
+			nn.BatchNorm2d(64),
+			nn.ReLU(),
+			nn.AdaptiveAvgPool2d(1),
+			nn.Flatten(),
+			nn.Linear(64, 32),
+			nn.ReLU(),
+			nn.Linear(32, 1),
+			nn.Tanh()
+		)
+
+
+
+
+
 		self.value_head_hpSumAndCurPlayer_spatial = nn.Sequential(
 			nn.Conv2d(in_channels=num_channels, out_channels=25, kernel_size=(1,1)),
 			nn.BatchNorm2d(25),
@@ -79,32 +128,6 @@ class Net(nn.Module):
 			nn.Linear(128, 64),
 			nn.ReLU()
 		)
-
-		self.rts_head = nn.Sequential(
-			nn.Conv2d(in_channels=25, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1, bias=False),
-			nn.BatchNorm2d(num_channels),
-			nn.ReLU(),
-			nn.Conv2d(in_channels=num_channels, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1, bias=False),
-			nn.BatchNorm2d(num_channels),
-			nn.ReLU(),
-			nn.Conv2d(in_channels=num_channels, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1, bias=False),
-			nn.BatchNorm2d(num_channels),
-			nn.ReLU(),
-			nn.Conv2d(in_channels=num_channels, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1, bias=False),
-			nn.BatchNorm2d(num_channels),
-			nn.ReLU(),
-			nn.Flatten(),
-			nn.Linear(num_channels*14*4, 256),
-			nn.BatchNorm1d(256),
-			nn.ReLU(),
-			nn.Dropout(0.3),
-			nn.Linear(256, 128),
-			nn.BatchNorm1d(128),
-			nn.ReLU(),
-			nn.Dropout(0.3),
-			nn.Linear(128, 1),
-			nn.Tanh()
-		)
 	
 	def make_all_fusion_block(self):
 		return nn.Sequential(
@@ -115,17 +138,39 @@ class Net(nn.Module):
 		)
 
 	def forward(self, x):
-		#test_head = self.rts_head(x)
+		spatial_onehot_channel_idx = [0,3,5,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]
+		spatial_not_onehot_channel_idx = [1,2,4,6]
+		global_channel_idx = [24]
 
+		spatial_onehot_input = x[:, spatial_onehot_channel_idx, :, :]
+		spatial_not_onehot_input = x[:, spatial_not_onehot_channel_idx, :, :]
+		global_input = x[:, global_channel_idx, :, :]
 
+		spatial_onehot_output = self.spatial_preprocess_block(spatial_onehot_input)
+		for layer in self.res_blocks:
+			spatial_onehot_output = layer(spatial_onehot_output)
+
+		spatial_not_onehot_output = self.spatial_not_onehot_preprocess_block(spatial_not_onehot_input)
+		for layer in self.res_blocks:
+			spatial_not_onehot_output = layer(spatial_not_onehot_output)
+
+		global_value = self.global_block(global_input)
+
+		onehot_value = self.spatial_onehot_block(spatial_onehot_output)
+		not_onehot_value = self.spatial_not_onehot_block(spatial_not_onehot_output)
+
+		
+
+		'''
 		selected_channels = [18]
 		global_features_input = x[:, selected_channels, :, :]
-
+		
 		x = self.conv_block(x)
 		x = self.conv_block_bn(x)
 		x = self.conv_block_act(x)
 		for layer in self.res_blocks:
 			x = layer(x)
+		'''
 
 		'''
 		attention_features = self.attention_feature_extractor(global_features_input)
@@ -137,17 +182,20 @@ class Net(nn.Module):
 		all_feature_value = self.value_head_hpSumAndCurPlayer_spatial[6](all_features)
 		'''
 
+		x = self.conv_block(x)
+		x = self.conv_block_bn(x)
+		x = self.conv_block_act(x)
+		for layer in self.res_blocks:
+			x = layer(x)
 		# policy head
 		policy = self.policy_head(x)
 
 
 		# value head
-		origin_value = self.origin_value_head(x)
-		
-		
+		#origin_value = self.origin_value_head(x)
 
 		#return policy, all_feature_value
-		return policy, origin_value
+		return policy, onehot_value, not_onehot_value, global_value
 
 class PolicyValueNet:
 	def __init__(self, model_file = None, use_gpu = True, device = 'cuda'):
@@ -193,10 +241,10 @@ class PolicyValueNet:
 	def policy_value(self, state_batch):
 		self.policy_value_net.eval()
 		state_batch = torch.tensor(state_batch).to(self.device)
-		log_act_probs, value = self.policy_value_net(state_batch)
-		log_act_probs, value = log_act_probs.cpu(), value.cpu()
+		log_act_probs, spatial_onehot_v, spatial_not_onehot_v, global_v = self.policy_value_net(state_batch)
+		log_act_probs, spatial_onehot_v, spatial_not_onehot_v, global_v = log_act_probs.cpu(), spatial_onehot_v.cpu(), spatial_not_onehot_v.cpu(), global_v.cpu()
 		act_probs = np.exp(log_act_probs.detach().numpy())
-		return act_probs, value.detach().numpy()
+		return act_probs, spatial_onehot_v.detach().numpy(), spatial_not_onehot_v.detach().numpy(), global_v.detach().numpy()
 
 	def save_model(self, model_file):
 		example_input = torch.randn(1, 25, 14, 4).to(next(self.policy_value_net.parameters()).device)
@@ -217,16 +265,24 @@ class PolicyValueNet:
 		for params in self.optimizer.param_groups:
 			params['lr'] = lr
 
-		log_act_probs, value = self.policy_value_net(state_batch)
-		value = torch.reshape(value, shape=[-1])
+		log_act_probs, spatial_onehot_v, spatial_not_onehot_v, global_v = self.policy_value_net(state_batch)
+		spatial_onehot_v = torch.reshape(spatial_onehot_v, shape=[-1])
+		spatial_not_onehot_v = torch.reshape(spatial_not_onehot_v, shape=[-1])
+		global_v = torch.reshape(global_v, shape=[-1])
 
-		value_loss = F.mse_loss(input=value, target=winner_batch)
+		spatial_onehot_v_loss = F.mse_loss(input=spatial_onehot_v, target=winner_batch)
+		spatial_not_onehot_v_loss = F.mse_loss(input=spatial_not_onehot_v, target=winner_batch)
+		global_v_loss = F.mse_loss(input=global_v, target=winner_batch)
 
 		policy_loss = -torch.mean(torch.sum(mcts_probs * log_act_probs, dim = 1))
 
-		loss = value_loss + policy_loss
+		loss = spatial_onehot_v_loss + spatial_not_onehot_v_loss + global_v_loss + policy_loss
 
-		loss.backward()
+		spatial_onehot_v_loss.backward()
+		spatial_not_onehot_v_loss.backward()
+		global_v_loss.backward()
+		policy_loss.backward()
+		#loss.backward()
 
 		self.optimizer.step()
 
@@ -235,7 +291,7 @@ class PolicyValueNet:
 				torch.sum(torch.exp(log_act_probs) * log_act_probs, dim = 1)
 			)
 
-		return loss.detach().cpu().numpy(), entropy.detach().cpu().numpy()
+		return policy_loss.detach().cpu().numpy(), spatial_onehot_v_loss.detach().cpu().numpy(), spatial_not_onehot_v_loss.detach().cpu().numpy(), global_v_loss.detach().cpu().numpy(), entropy.detach().cpu().numpy()
 
 
     

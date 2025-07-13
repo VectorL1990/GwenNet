@@ -46,7 +46,7 @@ with open("OneWeakShapeStateCoding.bin", 'rb') as stateCodingsFile:
 #load_test_data()
 print("section Zero Weak Section Zero Action TestCoding")
 print(sectionZeroWeakSectionZeroActionTestCoding[0][0])
-print(sectionZeroWeakSectionZeroActionTestCoding[0][23])
+#print(sectionZeroWeakSectionZeroActionTestCoding[0][18])
 input_data_0 = sectionZeroWeakSectionZeroActionTestCoding
 inputs_0 = [httpclient.InferInput("input_0", input_data_0.shape, "FP32")]
 inputs_0[0].set_data_from_numpy(input_data_0)
@@ -57,9 +57,13 @@ result_0 = client.infer(model_name="GwenNetModel", inputs=inputs_0)
 # 获取输出
 policy_output_0 = result_0.as_numpy("output_0")
 value_output_0 = result_0.as_numpy("output_1")
+value_output_1 = result_0.as_numpy("output_2")
+value_output_2 = result_0.as_numpy("output_3")
 
 print("Policy shape:", policy_output_0.shape)
 print("Value output:", value_output_0)
+print("Value output:", value_output_1)
+print("Value output:", value_output_2)
 
 '''
 print("section Zero Weak Section One Action TestCoding")
@@ -84,7 +88,7 @@ print("Value output:", value_output_1)
 
 print("section One Weak Section Zero Action TestCoding")
 print(sectionOneWeakSectionZeroActionTestCoding[0][0])
-print(sectionOneWeakSectionZeroActionTestCoding[0][23])
+#print(sectionOneWeakSectionZeroActionTestCoding[0][22])
 input_data_2 = sectionOneWeakSectionZeroActionTestCoding
 inputs_2 = [httpclient.InferInput("input_0", input_data_2.shape, "FP32")]
 inputs_2[0].set_data_from_numpy(input_data_2)
@@ -94,10 +98,14 @@ result_2 = client.infer(model_name="GwenNetModel", inputs=inputs_2)
 
 # 获取输出
 policy_output_2 = result_2.as_numpy("output_0")
-value_output_2 = result_2.as_numpy("output_1")
+value_output_3 = result_2.as_numpy("output_1")
+value_output_4 = result_2.as_numpy("output_1")
+value_output_5 = result_2.as_numpy("output_1")
 
 print("Policy shape:", policy_output_2.shape)
-print("Value output:", value_output_2)
+print("Value output:", value_output_3)
+print("Value output:", value_output_4)
+print("Value output:", value_output_5)
 
 
 '''

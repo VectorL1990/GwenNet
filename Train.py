@@ -85,18 +85,18 @@ class Trainer:
         #self.gameWinScoresBatch = np.array(self.gameWinScoresBatch).astype('float32')
 
         #print(self.gameWinScoresBatch)
-        old_probs, old_v = self.policy_value_net.policy_value(self.gameStatesBatch)
+        old_probs, old_sohv, old_snohv, old_gv = self.policy_value_net.policy_value(self.gameStatesBatch)
         #print(old_v.flatten())
 
         for i in range(self.epochs):
-            loss, entropy = self.policy_value_net.train_step(
+            pl, sohl, snohl, gl, entropy = self.policy_value_net.train_step(
                 self.gameStatesBatch,
                 self.gameActionProbsBatch,
                 self.gameWinScoresBatch,
                 self.learn_rate * self.lr_multiplier
             )
 
-            new_probs, new_v = self.policy_value_net.policy_value(self.gameStatesBatch)
+            new_probs, new_sohv, new_snohv, new_gv = self.policy_value_net.policy_value(self.gameStatesBatch)
 
             kl = np.mean(np.sum(old_probs * (
                 np.log(old_probs + 1e-10) - np.log(new_probs + 1e-10)),
@@ -116,28 +116,56 @@ class Trainer:
         #explained_var_new = self.safe_explained_variance(scores_cpu, new_v.flatten())
 
         
-        explained_var_old = (1 -
-                             np.var(scores_cpu - old_v.flatten()) /
+        explained_var_soh_old = (1 -
+                             np.var(scores_cpu - old_sohv.flatten()) /
                              np.var(scores_cpu))
-        explained_var_new = (1 -
-                             np.var(scores_cpu - new_v.flatten()) /
+        explained_var_soh_new = (1 -
+                             np.var(scores_cpu - new_sohv.flatten()) /
+                             np.var(scores_cpu))
+        
+        explained_var_snoh_old = (1 -
+                             np.var(scores_cpu - old_snohv.flatten()) /
+                             np.var(scores_cpu))
+        explained_var_snoh_new = (1 -
+                             np.var(scores_cpu - new_snohv.flatten()) /
+                             np.var(scores_cpu))
+        
+        explained_var_g_old = (1 -
+                             np.var(scores_cpu - old_gv.flatten()) /
+                             np.var(scores_cpu))
+        explained_var_g_new = (1 -
+                             np.var(scores_cpu - new_gv.flatten()) /
                              np.var(scores_cpu))
         
 
         print(("kl:{:.5f},"
                "lr_multiplier:{:.3f},"
-               "loss:{},"
+               #"loss:{},"
+               "sohloss:{},"
+               "snohloss:{},"
+               "gloss:{},"
                "entropy:{},"
-               "explained_var_old:{:.9f},"
-               "explained_var_new:{:.9f}"
+               "explained_var_soh_old:{:.9f},"
+               "explained_var_soh_new:{:.9f},"
+               "explained_var_snoh_new:{:.9f},"
+               "explained_var_snoh_new:{:.9f},"
+               "explained_var_g_new:{:.9f},"
+               "explained_var_g_new:{:.9f},"
                ).format(kl,
                         self.lr_multiplier,
-                        loss,
+                        #loss,
+                        sohl,
+                        snohl,
+                        gl,
                         entropy,
-                        explained_var_old,
-                        explained_var_new))
+                        explained_var_soh_old,
+                        explained_var_soh_new,
+                        explained_var_snoh_old,
+                        explained_var_snoh_new,
+                        explained_var_g_old,
+                        explained_var_g_new))
 
-        return loss, entropy
+        return pl, sohl,snohl,gl, entropy
 
     def run(self):
         try:
@@ -286,7 +314,7 @@ class Trainer:
                 self.gameActionProbsBatch = torch.as_tensor(batch_probs, dtype=torch.float32).to('cuda')
                 self.gameWinScoresBatch = torch.as_tensor(batch_scores, dtype=torch.float32).to('cuda')
 
-                loss, entropy = self.policy_update()
+                pl, sohl, snohl, gl, entropy = self.policy_update()
                 self.policy_value_net.save_model("model.pt")
 
         except KeyboardInterrupt:
