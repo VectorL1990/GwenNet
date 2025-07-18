@@ -10,8 +10,8 @@ client = httpclient.InferenceServerClient(url="localhost:8000")
 
 
 #def load_test_data():
-sectionZeroWeakStateCodingFileSize = os.path.getsize("ZeroWeakShapeStateCoding.bin")
-with open("ZeroWeakShapeStateCoding.bin", 'rb') as stateCodingsFile:
+sectionZeroWeakStateCodingFileSize = os.path.getsize("NeutralCaseStateCoding_4.bin")
+with open("NeutralCaseStateCoding_4.bin", 'rb') as stateCodingsFile:
     while stateCodingsFile.tell() < sectionZeroWeakStateCodingFileSize:
         stateCoding_0 = np.frombuffer(stateCodingsFile.read(25*14*4*4), dtype=np.int32)
         stateCoding_0 = stateCoding_0.reshape((1, 25, 14, 4)).astype(np.float32)
@@ -26,8 +26,8 @@ with open("ZeroWeakShapeStateCoding.bin", 'rb') as stateCodingsFile:
         #sectionZeroWeakSectionOneActionTestCoding[0][20] = -sectionZeroWeakSectionOneActionTestCoding[0][20]
 
 
-sectionOneWeakStateCodingFileSize = os.path.getsize("OneWeakShapeStateCoding.bin")
-with open("OneWeakShapeStateCoding.bin", 'rb') as stateCodingsFile:
+sectionOneWeakStateCodingFileSize = os.path.getsize("OneWeakShapeStateCoding_1.bin")
+with open("OneWeakShapeStateCoding_1.bin", 'rb') as stateCodingsFile:
     while stateCodingsFile.tell() < sectionOneWeakStateCodingFileSize:
         stateCoding_2 = np.frombuffer(stateCodingsFile.read(25*14*4*4), dtype=np.int32)
         stateCoding_2 = stateCoding_2.reshape((1, 25, 14, 4)).astype(np.float32)
@@ -56,14 +56,10 @@ result_0 = client.infer(model_name="GwenNetModel", inputs=inputs_0)
 
 # 获取输出
 policy_output_0 = result_0.as_numpy("output_0")
-value_output_0 = result_0.as_numpy("output_1")
-value_output_1 = result_0.as_numpy("output_2")
-value_output_2 = result_0.as_numpy("output_3")
+spatial_v_0 = result_0.as_numpy("output_1")
 
 print("Policy shape:", policy_output_0.shape)
-print("Value output:", value_output_0)
-print("Value output:", value_output_1)
-print("Value output:", value_output_2)
+print("Value output:", spatial_v_0)
 
 '''
 print("section Zero Weak Section One Action TestCoding")
@@ -98,14 +94,11 @@ result_2 = client.infer(model_name="GwenNetModel", inputs=inputs_2)
 
 # 获取输出
 policy_output_2 = result_2.as_numpy("output_0")
-value_output_3 = result_2.as_numpy("output_1")
-value_output_4 = result_2.as_numpy("output_1")
-value_output_5 = result_2.as_numpy("output_1")
+spatial_v_1 = result_2.as_numpy("output_1")
+
 
 print("Policy shape:", policy_output_2.shape)
-print("Value output:", value_output_3)
-print("Value output:", value_output_4)
-print("Value output:", value_output_5)
+print("Value output:", spatial_v_1)
 
 
 '''

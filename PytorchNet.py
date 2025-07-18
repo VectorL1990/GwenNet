@@ -29,33 +29,30 @@ class Net(nn.Module):
 	def __init__(self, in_features_num = 25, num_channels=256, num_res_blocks=7):
 		# in_features_num represents feature descriptions of the board, which is 
 		super().__init__()
-		self.conv_block = nn.Conv2d(in_channels=in_features_num, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1)
-		self.conv_block_bn = nn.BatchNorm2d(num_channels)
-		self.conv_block_act = nn.ReLU()
 
 		# resnet for features extraction
-		self.res_blocks = nn.ModuleList([ResBlock(num_filters=num_channels) for _ in range(num_res_blocks)])
+		self.policy_res_blocks = nn.ModuleList([ResBlock(num_filters=num_channels) for _ in range(num_res_blocks)])
+		self.spatial_res_blocks = nn.ModuleList([ResBlock(num_filters=num_channels) for _ in range(num_res_blocks)])
+		self.hp_res_blocks = nn.ModuleList([ResBlock(num_filters=num_channels) for _ in range(num_res_blocks)])
+		self.defence_res_blocks = nn.ModuleList([ResBlock(num_filters=num_channels) for _ in range(num_res_blocks)])
+		self.curcd_res_blocks = nn.ModuleList([ResBlock(num_filters=num_channels) for _ in range(num_res_blocks)])
+		self.cura_res_blocks = nn.ModuleList([ResBlock(num_filters=num_channels) for _ in range(num_res_blocks)])
 
-		# policy head
-		self.policy_head = nn.Sequential(
-			nn.Conv2d(in_channels=num_channels, out_channels=25, kernel_size=(1,1)),
-			nn.BatchNorm2d(25),
+		self.policy_spatial_onehot_preprocess = nn.Sequential(
+			nn.Conv2d(in_channels=20, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1),
+			nn.BatchNorm2d(num_channels),
+			nn.ReLU()
+		)
+
+		self.policy_spatial_onehot_block = nn.Sequential(
+			nn.Conv2d(in_channels=num_channels, out_channels=20, kernel_size=(1,1), stride=(1,1)),
+			nn.BatchNorm2d(20),
 			nn.ReLU(),
 			nn.Flatten(),
-			nn.Linear(25*14*4, 20000),
+			nn.Linear(20*14*4, 20000),
 			nn.LogSoftmax(dim=1)
 		)
 
-		self.origin_value_head = nn.Sequential(
-			nn.Conv2d(in_channels=num_channels, out_channels=25, kernel_size=(1,1), stride=(1,1)),
-			nn.BatchNorm2d(25),
-			nn.ReLU(),
-			nn.Flatten(),
-			nn.Linear(25*14*4, 256),
-			nn.ReLU(),
-			nn.Linear(256, 1),
-			nn.Tanh()
-		)
 
 		self.spatial_preprocess_block = nn.Sequential(
 			nn.Conv2d(in_channels=20, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1),
@@ -74,30 +71,69 @@ class Net(nn.Module):
 			nn.Tanh()
 		)
 
-		self.spatial_not_onehot_preprocess_block = nn.Sequential(
-			nn.Conv2d(in_channels=4, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1),
+		self.hp_preprocess_block = nn.Sequential(
+			nn.Conv2d(in_channels=1, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1),
 			nn.BatchNorm2d(num_channels),
 			nn.ReLU()
 		)
 
-		self.spatial_not_onehot_block = nn.Sequential(
-			nn.Conv2d(in_channels=num_channels, out_channels=4, kernel_size=(1,1), stride=(1,1)),
-			nn.BatchNorm2d(4),
+		self.defence_preprocess_block = nn.Sequential(
+			nn.Conv2d(in_channels=1, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1),
+			nn.BatchNorm2d(num_channels),
+			nn.ReLU()
+		)
+
+		self.curcd_preprocess_block = nn.Sequential(
+			nn.Conv2d(in_channels=1, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1),
+			nn.BatchNorm2d(num_channels),
+			nn.ReLU()
+		)
+
+		self.cura_preprocess_block = nn.Sequential(
+			nn.Conv2d(in_channels=1, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1),
+			nn.BatchNorm2d(num_channels),
+			nn.ReLU()
+		)
+
+		self.hp_block = nn.Sequential(
+			nn.Conv2d(in_channels=num_channels, out_channels=1, kernel_size=(1,1), stride=(1,1)),
+			nn.BatchNorm2d(1),
 			nn.ReLU(),
 			nn.Flatten(),
-			nn.Linear(4*14*4, 64),
+			nn.Linear(1*14*4, 32),
 			nn.ReLU(),
-			nn.Linear(64, 1),
+			nn.Linear(32, 1),
 			nn.Tanh()
 		)
 
-		self.global_block = nn.Sequential(
-			nn.Conv2d(1, 64, kernel_size=1),
-			nn.BatchNorm2d(64),
+		self.defence_block = nn.Sequential(
+			nn.Conv2d(in_channels=num_channels, out_channels=1, kernel_size=(1,1), stride=(1,1)),
+			nn.BatchNorm2d(1),
 			nn.ReLU(),
-			nn.AdaptiveAvgPool2d(1),
 			nn.Flatten(),
-			nn.Linear(64, 32),
+			nn.Linear(1*14*4, 32),
+			nn.ReLU(),
+			nn.Linear(32, 1),
+			nn.Tanh()
+		)
+
+		self.curcd_block = nn.Sequential(
+			nn.Conv2d(in_channels=num_channels, out_channels=1, kernel_size=(1,1), stride=(1,1)),
+			nn.BatchNorm2d(1),
+			nn.ReLU(),
+			nn.Flatten(),
+			nn.Linear(1*14*4, 32),
+			nn.ReLU(),
+			nn.Linear(32, 1),
+			nn.Tanh()
+		)
+
+		self.cura_block = nn.Sequential(
+			nn.Conv2d(in_channels=num_channels, out_channels=1, kernel_size=(1,1), stride=(1,1)),
+			nn.BatchNorm2d(1),
+			nn.ReLU(),
+			nn.Flatten(),
+			nn.Linear(1*14*4, 32),
 			nn.ReLU(),
 			nn.Linear(32, 1),
 			nn.Tanh()
@@ -107,95 +143,67 @@ class Net(nn.Module):
 
 
 
-		self.value_head_hpSumAndCurPlayer_spatial = nn.Sequential(
-			nn.Conv2d(in_channels=num_channels, out_channels=25, kernel_size=(1,1)),
-			nn.BatchNorm2d(25),
-			nn.ReLU(),
-			nn.Flatten(),
-			nn.Linear(25*14*4, 64),
-			nn.ReLU(),
-			self.make_all_fusion_block()
-		)
-
-		self.attention_feature_extractor = nn.Sequential(
-			nn.Conv2d(1, 64, kernel_size=1),  # 处理4个专用通道
-			nn.BatchNorm2d(64),
-			nn.ReLU(),
-			nn.AdaptiveAvgPool2d(1),
-			nn.Flatten(),
-			nn.Linear(64, 128),
-			nn.ReLU(),
-			nn.Linear(128, 64),
-			nn.ReLU()
-		)
 	
-	def make_all_fusion_block(self):
-		return nn.Sequential(
-			nn.Linear(128, 64),
-			nn.ReLU(),
-			nn.Linear(64, 1),
-			nn.Tanh()
-		)
 
 	def forward(self, x):
 		spatial_onehot_channel_idx = [0,3,5,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]
-		spatial_not_onehot_channel_idx = [1,2,4,6]
-		global_channel_idx = [24]
+		hp_channel_idx = [1]
+		defence_channel_idx = [2]
+		cur_cd_channel_idx = [4]
+		cur_available_channel_idx = [6]
+		global_channel_idx = [23, 24]
 
 		spatial_onehot_input = x[:, spatial_onehot_channel_idx, :, :]
-		spatial_not_onehot_input = x[:, spatial_not_onehot_channel_idx, :, :]
+		hp_input = x[:, hp_channel_idx, :, :] / 10.0
+		defence_input = x[:, defence_channel_idx, :, :] / 5.0
+		cur_cd_input = x[:, cur_cd_channel_idx, :, :] / 2.0
+		##################################### problem
+		cur_cd_input[:, 0, :, :] = 0.0
+		cur_available_input = x[:, cur_available_channel_idx, :, :] / 2.0
 		global_input = x[:, global_channel_idx, :, :]
+		global_input[:, 1, :, :] = global_input[:, 1, :, :] / 10.0
 
 		spatial_onehot_output = self.spatial_preprocess_block(spatial_onehot_input)
-		for layer in self.res_blocks:
+		for layer in self.spatial_res_blocks:
 			spatial_onehot_output = layer(spatial_onehot_output)
 
-		spatial_not_onehot_output = self.spatial_not_onehot_preprocess_block(spatial_not_onehot_input)
-		for layer in self.res_blocks:
-			spatial_not_onehot_output = layer(spatial_not_onehot_output)
+		'''
+		hp_output = self.hp_preprocess_block(hp_input)
+		for layer in self.hp_res_blocks:
+			hp_output = layer(hp_output)
 
-		global_value = self.global_block(global_input)
+		defence_output = self.defence_preprocess_block(defence_input)
+		for layer in self.defence_res_blocks:
+			defence_output = layer(defence_output)
+
+		cur_cd_output = self.curcd_preprocess_block(cur_cd_input)
+		for layer in self.curcd_res_blocks:
+			cur_cd_output = layer(cur_cd_output)
+
+		cur_available_output = self.cura_preprocess_block(cur_available_input)
+		for layer in self.cura_res_blocks:
+			cur_available_output = layer(cur_available_output)
+		'''
+
 
 		onehot_value = self.spatial_onehot_block(spatial_onehot_output)
-		not_onehot_value = self.spatial_not_onehot_block(spatial_not_onehot_output)
+		'''
+		hp_value = self.hp_block(hp_output)
+		defence_value = self.defence_block(defence_output)
+		cur_cd_value = self.curcd_block(cur_cd_output)
+		cur_available_value = self.cura_block(cur_available_output)
+		'''
 
 		
-
-		'''
-		selected_channels = [18]
-		global_features_input = x[:, selected_channels, :, :]
-		
-		x = self.conv_block(x)
-		x = self.conv_block_bn(x)
-		x = self.conv_block_act(x)
-		for layer in self.res_blocks:
-			x = layer(x)
-		'''
-
-		'''
-		attention_features = self.attention_feature_extractor(global_features_input)
-
-		spatial_features = self.value_head_hpSumAndCurPlayer_spatial[0:6](x)
-
-		all_features = torch.cat([spatial_features, attention_features], dim=1)
-
-		all_feature_value = self.value_head_hpSumAndCurPlayer_spatial[6](all_features)
-		'''
-
-		x = self.conv_block(x)
-		x = self.conv_block_bn(x)
-		x = self.conv_block_act(x)
-		for layer in self.res_blocks:
-			x = layer(x)
-		# policy head
-		policy = self.policy_head(x)
+		policy_output = self.policy_spatial_onehot_preprocess(spatial_onehot_input)
+		for layer in self.policy_res_blocks:
+			policy_output = layer(policy_output)
+		policy = self.policy_spatial_onehot_block(policy_output)
 
 
-		# value head
-		#origin_value = self.origin_value_head(x)
 
 		#return policy, all_feature_value
-		return policy, onehot_value, not_onehot_value, global_value
+		return policy, onehot_value
 
 class PolicyValueNet:
 	def __init__(self, model_file = None, use_gpu = True, device = 'cuda'):
@@ -241,10 +249,11 @@ class PolicyValueNet:
 	def policy_value(self, state_batch):
 		self.policy_value_net.eval()
 		state_batch = torch.tensor(state_batch).to(self.device)
-		log_act_probs, spatial_onehot_v, spatial_not_onehot_v, global_v = self.policy_value_net(state_batch)
-		log_act_probs, spatial_onehot_v, spatial_not_onehot_v, global_v = log_act_probs.cpu(), spatial_onehot_v.cpu(), spatial_not_onehot_v.cpu(), global_v.cpu()
+		log_act_probs, spatial_onehot_v = self.policy_value_net(state_batch)
+		log_act_probs = log_act_probs.cpu()
+		spatial_onehot_v = spatial_onehot_v.cpu()
 		act_probs = np.exp(log_act_probs.detach().numpy())
-		return act_probs, spatial_onehot_v.detach().numpy(), spatial_not_onehot_v.detach().numpy(), global_v.detach().numpy()
+		return act_probs, spatial_onehot_v.detach().numpy()
 
 	def save_model(self, model_file):
 		example_input = torch.randn(1, 25, 14, 4).to(next(self.policy_value_net.parameters()).device)
@@ -265,24 +274,15 @@ class PolicyValueNet:
 		for params in self.optimizer.param_groups:
 			params['lr'] = lr
 
-		log_act_probs, spatial_onehot_v, spatial_not_onehot_v, global_v = self.policy_value_net(state_batch)
+		log_act_probs, spatial_onehot_v = self.policy_value_net(state_batch)
 		spatial_onehot_v = torch.reshape(spatial_onehot_v, shape=[-1])
-		spatial_not_onehot_v = torch.reshape(spatial_not_onehot_v, shape=[-1])
-		global_v = torch.reshape(global_v, shape=[-1])
 
 		spatial_onehot_v_loss = F.mse_loss(input=spatial_onehot_v, target=winner_batch)
-		spatial_not_onehot_v_loss = F.mse_loss(input=spatial_not_onehot_v, target=winner_batch)
-		global_v_loss = F.mse_loss(input=global_v, target=winner_batch)
 
 		policy_loss = -torch.mean(torch.sum(mcts_probs * log_act_probs, dim = 1))
 
-		loss = spatial_onehot_v_loss + spatial_not_onehot_v_loss + global_v_loss + policy_loss
-
 		spatial_onehot_v_loss.backward()
-		spatial_not_onehot_v_loss.backward()
-		global_v_loss.backward()
 		policy_loss.backward()
-		#loss.backward()
 
 		self.optimizer.step()
 
@@ -291,7 +291,7 @@ class PolicyValueNet:
 				torch.sum(torch.exp(log_act_probs) * log_act_probs, dim = 1)
 			)
 
-		return policy_loss.detach().cpu().numpy(), spatial_onehot_v_loss.detach().cpu().numpy(), spatial_not_onehot_v_loss.detach().cpu().numpy(), global_v_loss.detach().cpu().numpy(), entropy.detach().cpu().numpy()
+		return policy_loss.detach().cpu().numpy(), spatial_onehot_v_loss.detach().cpu().numpy(), entropy.detach().cpu().numpy()
 
 
     
