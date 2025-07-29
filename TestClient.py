@@ -6,20 +6,20 @@ import copy
 
 client = httpclient.InferenceServerClient(url="localhost:8000")
 
-#testCoding = np.random.randn(1, 25, 14, 4).astype(np.float32)
+#testCoding = np.random.randn(1, 59, 14, 4).astype(np.float32)
 
 
 #def load_test_data():
 sectionZeroWeakStateCodingFileSize = os.path.getsize("NeutralCaseStateCoding_4.bin")
 with open("NeutralCaseStateCoding_4.bin", 'rb') as stateCodingsFile:
     while stateCodingsFile.tell() < sectionZeroWeakStateCodingFileSize:
-        stateCoding_0 = np.frombuffer(stateCodingsFile.read(25*14*4*4), dtype=np.int32)
-        stateCoding_0 = stateCoding_0.reshape((1, 25, 14, 4)).astype(np.float32)
+        stateCoding_0 = np.frombuffer(stateCodingsFile.read(59*14*4*4), dtype=np.int32)
+        stateCoding_0 = stateCoding_0.reshape((1, 59, 14, 4)).astype(np.float32)
         sectionZeroWeakSectionZeroActionTestCoding = stateCoding_0
-        sectionZeroWeakSectionZeroActionTestCoding[0][23] = 1
+        sectionZeroWeakSectionZeroActionTestCoding[0][57] = 1
 
         stateCoding_1 = copy.deepcopy(stateCoding_0)
-        #stateCoding_1 = stateCoding_1.reshape((1, 25, 14, 4)).astype(np.float32)
+        #stateCoding_1 = stateCoding_1.reshape((1, 59, 14, 4)).astype(np.float32)
         sectionZeroWeakSectionOneActionTestCoding = stateCoding_1
         sectionZeroWeakSectionOneActionTestCoding[0] = -sectionZeroWeakSectionOneActionTestCoding[0]
         #sectionZeroWeakSectionOneActionTestCoding[0][19] = -1
@@ -29,20 +29,20 @@ with open("NeutralCaseStateCoding_4.bin", 'rb') as stateCodingsFile:
 sectionOneWeakStateCodingFileSize = os.path.getsize("OneWeakShapeStateCoding_1.bin")
 with open("OneWeakShapeStateCoding_1.bin", 'rb') as stateCodingsFile:
     while stateCodingsFile.tell() < sectionOneWeakStateCodingFileSize:
-        stateCoding_2 = np.frombuffer(stateCodingsFile.read(25*14*4*4), dtype=np.int32)
-        stateCoding_2 = stateCoding_2.reshape((1, 25, 14, 4)).astype(np.float32)
+        stateCoding_2 = np.frombuffer(stateCodingsFile.read(59*14*4*4), dtype=np.int32)
+        stateCoding_2 = stateCoding_2.reshape((1, 59, 14, 4)).astype(np.float32)
         sectionOneWeakSectionZeroActionTestCoding = stateCoding_2
-        sectionOneWeakSectionZeroActionTestCoding[0][23] = 1
+        sectionOneWeakSectionZeroActionTestCoding[0][57] = 1
 
         stateCoding_3 = copy.deepcopy(stateCoding_2)
-        #stateCoding_3 = stateCoding_3.reshape((1, 25, 14, 4)).astype(np.float32)
+        #stateCoding_3 = stateCoding_3.reshape((1, 59, 14, 4)).astype(np.float32)
         sectionOneWeakSectionOneActionTestCoding = stateCoding_3
         sectionOneWeakSectionOneActionTestCoding[0] = -sectionOneWeakSectionOneActionTestCoding[0]
         #sectionOneWeakSectionOneActionTestCoding[0][19] = -1
         #sectionOneWeakSectionOneActionTestCoding[0][20] = -sectionOneWeakSectionOneActionTestCoding[0][20]
 
 # 准备输入数据
-#input_data = np.random.randn(1, 25, 14, 4).astype(np.float32)
+#input_data = np.random.randn(1, 59, 14, 4).astype(np.float32)
 #load_test_data()
 print("section Zero Weak Section Zero Action TestCoding")
 print(sectionZeroWeakSectionZeroActionTestCoding[0][0])

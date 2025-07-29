@@ -168,14 +168,27 @@ class Trainer:
                     for j in range(stepNb):
                         #print(f"now comes to step {j}")
                         stateCoding = np.frombuffer(stateCodingsFile.read(channelNb*height*width*4), dtype=np.int32)
-                        stateCoding = stateCoding.reshape((25, 14, 4)).astype(np.float32)
+                        stateCoding = stateCoding.reshape((59, 14, 4)).astype(np.float32)
                         if j == 1:
-                            if stateCoding[23][0][0] == 1:
+                            if stateCoding[57][0][0] == 1:
                                 zeroStart += 1
                                 startSectionList.append(1)
-                            elif stateCoding[23][0][0] == -1:
+                            elif stateCoding[57][0][0] == -1:
                                 oneStart += 1
                                 startSectionList.append(-1)
+
+                        if stateGameNb == 1 and j == 10:
+                            print("---------------")
+                            print(stateCoding[2])
+                            print("---------------")
+                            print(stateCoding[35])
+                            print("---------------")
+                            print(stateCoding[36])
+                            print("---------------")
+                            print(stateCoding[57])
+                            print("---------------")
+                            print(stateCoding[58])
+                            print("---------------")
 
                         #if stateCoding[19][0][0] == -1:
                         #    stateCoding[18] = -stateCoding[18]

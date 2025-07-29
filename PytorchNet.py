@@ -26,7 +26,7 @@ class ResBlock(nn.Module):
 
 class Net(nn.Module):
 	#def __init__(self, in_features_num = 200, num_channels=256, num_res_blocks=7):
-	def __init__(self, in_features_num = 25, num_channels=256, num_res_blocks=7):
+	def __init__(self, in_features_num = 59, num_channels=256, num_res_blocks=7):
 		# in_features_num represents feature descriptions of the board, which is 
 		super().__init__()
 
@@ -39,33 +39,33 @@ class Net(nn.Module):
 		self.cura_res_blocks = nn.ModuleList([ResBlock(num_filters=num_channels) for _ in range(num_res_blocks)])
 
 		self.policy_spatial_onehot_preprocess = nn.Sequential(
-			nn.Conv2d(in_channels=20, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1),
+			nn.Conv2d(in_channels=27, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1),
 			nn.BatchNorm2d(num_channels),
 			nn.ReLU()
 		)
 
 		self.policy_spatial_onehot_block = nn.Sequential(
-			nn.Conv2d(in_channels=num_channels, out_channels=20, kernel_size=(1,1), stride=(1,1)),
-			nn.BatchNorm2d(20),
+			nn.Conv2d(in_channels=num_channels, out_channels=27, kernel_size=(1,1), stride=(1,1)),
+			nn.BatchNorm2d(27),
 			nn.ReLU(),
 			nn.Flatten(),
-			nn.Linear(20*14*4, 20000),
+			nn.Linear(27*14*4, 20000),
 			nn.LogSoftmax(dim=1)
 		)
 
 
 		self.spatial_preprocess_block = nn.Sequential(
-			nn.Conv2d(in_channels=20, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1),
+			nn.Conv2d(in_channels=27, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1),
 			nn.BatchNorm2d(num_channels),
 			nn.ReLU()
 		)
 
 		self.spatial_onehot_block = nn.Sequential(
-			nn.Conv2d(in_channels=num_channels, out_channels=20, kernel_size=(1,1), stride=(1,1)),
-			nn.BatchNorm2d(20),
+			nn.Conv2d(in_channels=num_channels, out_channels=27, kernel_size=(1,1), stride=(1,1)),
+			nn.BatchNorm2d(27),
 			nn.ReLU(),
 			nn.Flatten(),
-			nn.Linear(20*14*4, 256),
+			nn.Linear(27*14*4, 256),
 			nn.ReLU(),
 			nn.Linear(256, 1),
 			nn.Tanh()
@@ -146,16 +146,185 @@ class Net(nn.Module):
 	
 
 	def forward(self, x):
-		spatial_onehot_channel_idx = [0,3,5,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]
+
+		spatial_onehot_channel_idx = [0,1,2]
+		spatial_onehot_channel_idx += list(range(31,55))
 		hp_channel_idx = [1]
 		defence_channel_idx = [2]
 		cur_cd_channel_idx = [4]
 		cur_available_channel_idx = [6]
-		global_channel_idx = [23, 24]
+		global_channel_idx = [57, 58]
 
 		spatial_onehot_input = x[:, spatial_onehot_channel_idx, :, :]
-		hp_input = x[:, hp_channel_idx, :, :] / 10.0
-		defence_input = x[:, defence_channel_idx, :, :] / 5.0
+		section_spatial_input = x[:, [0], :, :]
+		hp_input = x[:, hp_channel_idx, :, :]
+		dfc_input = x[:, defence_channel_idx, :, :]
+
+		B, C, H, W = hp_input.shape
+		board_indices = torch.arange(H, device=hp_input.device).view(1, 1, H, 1)
+		board_mask = torch.where(
+			(board_indices < 5) | (board_indices > 8),
+			torch.zeros_like(hp_input),
+			torch.ones_like(hp_input))
+		'''
+		board section extract
+		'''
+		spatial_mask_input = spatial_onehot_input*board_mask
+
+
+
+
+		'''
+		same row extract
+		'''
+		section_spatial_mask_input = section_spatial_input*board_mask
+		
+		self_camp_mask = (section_spatial_mask_input > 0)
+		oppo_camp_mask = (section_spatial_mask_input < 0)
+		
+		self_row_sum = torch.where(
+			self_camp_mask,
+			section_spatial_mask_input,
+			torch.zeros_like(section_spatial_mask_input)
+		).sum(dim=3, keepdim=True).repeat(B, C, 1, W)
+
+		oppo_row_sum = torch.where(
+			oppo_camp_mask,
+			section_spatial_mask_input,
+			torch.zeros_like(section_spatial_mask_input)
+		).sum(dim=3, keepdim=True).repeat(B, C, 1, W)
+
+
+
+
+		'''
+		normal dfc extract
+		'''
+		dfc_mask_input = dfc_input*board_mask
+		pos_dfc_mask = (dfc_mask_input > 0)
+		neg_dfc_mask = (dfc_mask_input < 0)
+
+		# row defence sum info extract
+		self_row_dfc_sum = torch.where(
+			pos_dfc_mask,
+			dfc_mask_input,
+			torch.zeros_like(dfc_mask_input)
+		).sum(dim=3, keepdim=True)
+
+		oppo_row_dfc_sum = torch.where(
+			neg_dfc_mask,
+			dfc_mask_input,
+			torch.zeros_like(dfc_mask_input)
+		).sum(dim=3, keepdim=True)
+
+		abs_row_dfc_sum = (
+			torch.where(pos_dfc_mask, dfc_mask_input, torch.zeros_like(dfc_mask_input)) + 
+			torch.where(neg_dfc_mask, -dfc_mask_input, torch.zeros_like(dfc_mask_input))
+		).sum(dim=3, keepdim=True)
+
+
+		# col defence sum info extract
+		self_col_dfc_sum = torch.where(
+			pos_dfc_mask,
+			dfc_mask_input,
+			torch.zeros_like(dfc_mask_input)
+		).sum(dim=2, keepdim=True).repeat(B, C, H, 1)
+
+		oppo_col_dfc_sum = torch.where(
+			neg_dfc_mask,
+			dfc_mask_input,
+			torch.zeros_like(dfc_mask_input)
+		).sum(dim=2, keepdim=True).repeat(B, C, H, 1)
+
+		abs_col_dfc_sum = (
+			torch.where(pos_dfc_mask, dfc_mask_input, torch.zeros_like(dfc_mask_input)) + 
+			torch.where(neg_dfc_mask, -dfc_mask_input, torch.zeros_like(dfc_mask_input))
+		).sum(dim=2, keepdim=True).repeat(B, C, H, 1)
+		
+		
+
+
+
+		'''
+		defence prereq
+		'''
+		self_row_dfc_more2_act_ch = torch.where(
+			self_row_dfc_sum > 2,
+			torch.ones_like(dfc_mask_input),
+			torch.zeros_like(dfc_mask_input)
+		)
+		oppo_row_dfc_more2_act_ch = torch.where(
+			oppo_row_dfc_sum < -2,
+			torch.ones_like(dfc_mask_input),
+			torch.zeros_like(dfc_mask_input)
+		)
+		abs_row_dfc_more2_act_ch = torch.where(
+			abs_row_dfc_sum > 2,
+			torch.ones_like(dfc_mask_input),
+			torch.zeros_like(dfc_mask_input)
+		)
+
+		'''
+		same row card affix
+		'''
+
+
+
+		'''
+		same col card affix
+		'''
+
+
+		'''
+		self hurt card affix
+		'''
+
+
+		'''
+		self heal card affix
+		'''
+
+
+
+		'''
+		hand card piles affix
+		'''
+		pile_h_indices = torch.arange(H, device=hp_input.device).view(1,1,H,1)
+		pile_mask = torch.where(
+			((pile_h_indices > 2) & (pile_h_indices < 5)) | ((pile_h_indices > 8) & (pile_h_indices < 11)),
+			torch.ones_like(hp_input),
+			torch.zeros_like(hp_input)
+		)
+		
+		hp_pile_mask = hp_input*pile_mask
+		pos_hp_mask = (hp_pile_mask > 0)
+		neg_hp_mask = (hp_pile_mask < 0)
+
+		self_pile_input = torch.where(
+			pos_hp_mask,
+			torch.ones_like(hp_pile_mask),
+			torch.zeros_like(hp_pile_mask)
+		)
+
+		oppo_pile_input = torch.where(
+			neg_hp_mask,
+			torch.ones_like(hp_pile_mask),
+			torch.zeros_like(hp_pile_mask)
+		)
+
+		self_pile_sum = self_pile_input.sum(dim=(2,3), keepdim=True)
+		oppo_pile_sum = oppo_pile_input.sum(dim=(2,3), keepdim=True)
+
+		self_pile_sum = self_pile_sum.repeat(B, C, H, W)
+		oppo_pile_sum = oppo_pile_sum.repeat(B, C, H, W)
+
+		'''
+		grave card piles affix
+		'''
+
+
+		
+
 		cur_cd_input = x[:, cur_cd_channel_idx, :, :] / 2.0
 		##################################### problem
 		cur_cd_input[:, 0, :, :] = 0.0
@@ -256,7 +425,7 @@ class PolicyValueNet:
 		return act_probs, spatial_onehot_v.detach().numpy()
 
 	def save_model(self, model_file):
-		example_input = torch.randn(1, 25, 14, 4).to(next(self.policy_value_net.parameters()).device)
+		example_input = torch.randn(1, 59, 14, 4).to(next(self.policy_value_net.parameters()).device)
 		self.policy_value_net.eval()
 		traced_model = torch.jit.trace(self.policy_value_net, example_input)
 		traced_model.save(model_file)
