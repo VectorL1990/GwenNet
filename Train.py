@@ -177,18 +177,18 @@ class Trainer:
                                 oneStart += 1
                                 startSectionList.append(-1)
 
-                        if stateGameNb == 1 and j == 10:
-                            print("---------------")
-                            print(stateCoding[2])
-                            print("---------------")
-                            print(stateCoding[35])
-                            print("---------------")
-                            print(stateCoding[36])
-                            print("---------------")
-                            print(stateCoding[57])
-                            print("---------------")
-                            print(stateCoding[58])
-                            print("---------------")
+                        #if stateGameNb == 1 and j == 10:
+                            #print("---------------")
+                            #print(stateCoding[2])
+                            #print("---------------")
+                            #print(stateCoding[35])
+                            #print("---------------")
+                            #print(stateCoding[36])
+                            #print("---------------")
+                            #print(stateCoding[57])
+                            #print("---------------")
+                            #print(stateCoding[58])
+                            #print("---------------")
 
                         #if stateCoding[19][0][0] == -1:
                         #    stateCoding[18] = -stateCoding[18]

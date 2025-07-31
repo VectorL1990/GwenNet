@@ -39,33 +39,33 @@ class Net(nn.Module):
 		self.cura_res_blocks = nn.ModuleList([ResBlock(num_filters=num_channels) for _ in range(num_res_blocks)])
 
 		self.policy_spatial_onehot_preprocess = nn.Sequential(
-			nn.Conv2d(in_channels=27, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1),
+			nn.Conv2d(in_channels=55, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1),
 			nn.BatchNorm2d(num_channels),
 			nn.ReLU()
 		)
 
 		self.policy_spatial_onehot_block = nn.Sequential(
-			nn.Conv2d(in_channels=num_channels, out_channels=27, kernel_size=(1,1), stride=(1,1)),
-			nn.BatchNorm2d(27),
+			nn.Conv2d(in_channels=num_channels, out_channels=55, kernel_size=(1,1), stride=(1,1)),
+			nn.BatchNorm2d(55),
 			nn.ReLU(),
 			nn.Flatten(),
-			nn.Linear(27*14*4, 20000),
+			nn.Linear(55*14*4, 20000),
 			nn.LogSoftmax(dim=1)
 		)
 
 
 		self.spatial_preprocess_block = nn.Sequential(
-			nn.Conv2d(in_channels=27, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1),
+			nn.Conv2d(in_channels=55, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1),
 			nn.BatchNorm2d(num_channels),
 			nn.ReLU()
 		)
 
 		self.spatial_onehot_block = nn.Sequential(
-			nn.Conv2d(in_channels=num_channels, out_channels=27, kernel_size=(1,1), stride=(1,1)),
-			nn.BatchNorm2d(27),
+			nn.Conv2d(in_channels=num_channels, out_channels=55, kernel_size=(1,1), stride=(1,1)),
+			nn.BatchNorm2d(55),
 			nn.ReLU(),
 			nn.Flatten(),
-			nn.Linear(27*14*4, 256),
+			nn.Linear(55*14*4, 256),
 			nn.ReLU(),
 			nn.Linear(256, 1),
 			nn.Tanh()
@@ -146,9 +146,8 @@ class Net(nn.Module):
 	
 
 	def forward(self, x):
-
-		spatial_onehot_channel_idx = [0,1,2]
-		spatial_onehot_channel_idx += list(range(31,55))
+		spatial_onehot_channel_idx = list(range(2,57))
+		#print(spatial_onehot_channel_idx)
 		hp_channel_idx = [1]
 		defence_channel_idx = [2]
 		cur_cd_channel_idx = [4]
@@ -169,13 +168,14 @@ class Net(nn.Module):
 		'''
 		board section extract
 		'''
-		spatial_mask_input = spatial_onehot_input*board_mask
+		#spatial_mask_input = spatial_onehot_input*board_mask
 
 
 
 
 		'''
 		same row extract
+		'''
 		'''
 		section_spatial_mask_input = section_spatial_input*board_mask
 		
@@ -193,12 +193,14 @@ class Net(nn.Module):
 			section_spatial_mask_input,
 			torch.zeros_like(section_spatial_mask_input)
 		).sum(dim=3, keepdim=True).repeat(B, C, 1, W)
+		'''
 
 
 
 
 		'''
 		normal dfc extract
+		'''
 		'''
 		dfc_mask_input = dfc_input*board_mask
 		pos_dfc_mask = (dfc_mask_input > 0)
@@ -240,13 +242,14 @@ class Net(nn.Module):
 			torch.where(pos_dfc_mask, dfc_mask_input, torch.zeros_like(dfc_mask_input)) + 
 			torch.where(neg_dfc_mask, -dfc_mask_input, torch.zeros_like(dfc_mask_input))
 		).sum(dim=2, keepdim=True).repeat(B, C, H, 1)
-		
+		'''
 		
 
 
 
 		'''
 		defence prereq
+		'''
 		'''
 		self_row_dfc_more2_act_ch = torch.where(
 			self_row_dfc_sum > 2,
@@ -263,6 +266,7 @@ class Net(nn.Module):
 			torch.ones_like(dfc_mask_input),
 			torch.zeros_like(dfc_mask_input)
 		)
+		'''
 
 		'''
 		same row card affix
@@ -288,6 +292,7 @@ class Net(nn.Module):
 
 		'''
 		hand card piles affix
+		'''
 		'''
 		pile_h_indices = torch.arange(H, device=hp_input.device).view(1,1,H,1)
 		pile_mask = torch.where(
@@ -317,6 +322,7 @@ class Net(nn.Module):
 
 		self_pile_sum = self_pile_sum.repeat(B, C, H, W)
 		oppo_pile_sum = oppo_pile_sum.repeat(B, C, H, W)
+		'''
 
 		'''
 		grave card piles affix
