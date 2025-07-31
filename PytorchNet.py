@@ -39,33 +39,33 @@ class Net(nn.Module):
 		self.cura_res_blocks = nn.ModuleList([ResBlock(num_filters=num_channels) for _ in range(num_res_blocks)])
 
 		self.policy_spatial_onehot_preprocess = nn.Sequential(
-			nn.Conv2d(in_channels=55, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1),
+			nn.Conv2d(in_channels=25, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1),
 			nn.BatchNorm2d(num_channels),
 			nn.ReLU()
 		)
 
 		self.policy_spatial_onehot_block = nn.Sequential(
-			nn.Conv2d(in_channels=num_channels, out_channels=55, kernel_size=(1,1), stride=(1,1)),
-			nn.BatchNorm2d(55),
+			nn.Conv2d(in_channels=num_channels, out_channels=25, kernel_size=(1,1), stride=(1,1)),
+			nn.BatchNorm2d(25),
 			nn.ReLU(),
 			nn.Flatten(),
-			nn.Linear(55*14*4, 20000),
+			nn.Linear(25*14*4, 20000),
 			nn.LogSoftmax(dim=1)
 		)
 
 
 		self.spatial_preprocess_block = nn.Sequential(
-			nn.Conv2d(in_channels=55, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1),
+			nn.Conv2d(in_channels=25, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1),
 			nn.BatchNorm2d(num_channels),
 			nn.ReLU()
 		)
 
 		self.spatial_onehot_block = nn.Sequential(
-			nn.Conv2d(in_channels=num_channels, out_channels=55, kernel_size=(1,1), stride=(1,1)),
-			nn.BatchNorm2d(55),
+			nn.Conv2d(in_channels=num_channels, out_channels=25, kernel_size=(1,1), stride=(1,1)),
+			nn.BatchNorm2d(25),
 			nn.ReLU(),
 			nn.Flatten(),
-			nn.Linear(55*14*4, 256),
+			nn.Linear(25*14*4, 256),
 			nn.ReLU(),
 			nn.Linear(256, 1),
 			nn.Tanh()
@@ -146,7 +146,8 @@ class Net(nn.Module):
 	
 
 	def forward(self, x):
-		spatial_onehot_channel_idx = list(range(2,57))
+		spatial_onehot_channel_idx = [2]
+		spatial_onehot_channel_idx += list(range(33,57))
 		#print(spatial_onehot_channel_idx)
 		hp_channel_idx = [1]
 		defence_channel_idx = [2]
