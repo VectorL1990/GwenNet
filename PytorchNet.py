@@ -26,7 +26,7 @@ class ResBlock(nn.Module):
 
 class Net(nn.Module):
 	#def __init__(self, in_features_num = 200, num_channels=256, num_res_blocks=7):
-	def __init__(self, in_features_num = 59, num_channels=256, num_res_blocks=7):
+	def __init__(self, in_features_num =84, num_channels=256, num_res_blocks=7):
 		# in_features_num represents feature descriptions of the board, which is 
 		super().__init__()
 
@@ -39,33 +39,33 @@ class Net(nn.Module):
 		self.cura_res_blocks = nn.ModuleList([ResBlock(num_filters=num_channels) for _ in range(num_res_blocks)])
 
 		self.policy_spatial_onehot_preprocess = nn.Sequential(
-			nn.Conv2d(in_channels=25, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1),
+			nn.Conv2d(in_channels=78, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1),
 			nn.BatchNorm2d(num_channels),
 			nn.ReLU()
 		)
 
 		self.policy_spatial_onehot_block = nn.Sequential(
-			nn.Conv2d(in_channels=num_channels, out_channels=25, kernel_size=(1,1), stride=(1,1)),
-			nn.BatchNorm2d(25),
+			nn.Conv2d(in_channels=num_channels, out_channels=78, kernel_size=(1,1), stride=(1,1)),
+			nn.BatchNorm2d(78),
 			nn.ReLU(),
 			nn.Flatten(),
-			nn.Linear(25*14*4, 20000),
+			nn.Linear(78*14*4, 20000),
 			nn.LogSoftmax(dim=1)
 		)
 
 
 		self.spatial_preprocess_block = nn.Sequential(
-			nn.Conv2d(in_channels=25, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1),
+			nn.Conv2d(in_channels=78, out_channels=num_channels, kernel_size=(3,3), stride=(1,1), padding=1),
 			nn.BatchNorm2d(num_channels),
 			nn.ReLU()
 		)
 
 		self.spatial_onehot_block = nn.Sequential(
-			nn.Conv2d(in_channels=num_channels, out_channels=25, kernel_size=(1,1), stride=(1,1)),
-			nn.BatchNorm2d(25),
+			nn.Conv2d(in_channels=num_channels, out_channels=78, kernel_size=(1,1), stride=(1,1)),
+			nn.BatchNorm2d(78),
 			nn.ReLU(),
 			nn.Flatten(),
-			nn.Linear(25*14*4, 256),
+			nn.Linear(78*14*4, 256),
 			nn.ReLU(),
 			nn.Linear(256, 1),
 			nn.Tanh()
@@ -147,7 +147,7 @@ class Net(nn.Module):
 
 	def forward(self, x):
 		spatial_onehot_channel_idx = [2]
-		spatial_onehot_channel_idx += list(range(33,57))
+		spatial_onehot_channel_idx += list(range(5,82))
 		#print(spatial_onehot_channel_idx)
 		hp_channel_idx = [1]
 		defence_channel_idx = [2]
@@ -432,7 +432,7 @@ class PolicyValueNet:
 		return act_probs, spatial_onehot_v.detach().numpy()
 
 	def save_model(self, model_file):
-		example_input = torch.randn(1, 59, 14, 4).to(next(self.policy_value_net.parameters()).device)
+		example_input = torch.randn(1, 84, 14, 4).to(next(self.policy_value_net.parameters()).device)
 		self.policy_value_net.eval()
 		traced_model = torch.jit.trace(self.policy_value_net, example_input)
 		traced_model.save(model_file)

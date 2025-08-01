@@ -168,7 +168,7 @@ class Trainer:
                     for j in range(stepNb):
                         #print(f"now comes to step {j}")
                         stateCoding = np.frombuffer(stateCodingsFile.read(channelNb*height*width*4), dtype=np.int32)
-                        stateCoding = stateCoding.reshape((59, 14, 4)).astype(np.float32)
+                        stateCoding = stateCoding.reshape((84, 14, 4)).astype(np.float32)
                         if j == 1:
                             if stateCoding[57][0][0] == 1:
                                 zeroStart += 1
